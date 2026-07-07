@@ -104,8 +104,16 @@ def get_js_unicom_source(data):
         if response.status_code == 200:
             # 解析JSON数据
             play_data = response.json()
-            playUrl_real = play_data['u']
-            pass
+            if 'u' in play_data:
+                playUrl_real = play_data['u']
+            elif play_data.get('data') and play_data['data'][0].get('url'):
+                playUrl_real = play_data['data'][0]['url']
+            else:
+                print(f"跳过: {tag}-{chnName}-{chnCode} 播放地址缺失")
+                continue
+        else:
+            print(f"跳过: {tag}-{chnName}-{chnCode} 请求失败，状态码：{response.status_code}")
+            continue
 
         # 获取 group 信息
         groupName = get_group_info(chnName)
