@@ -76,8 +76,8 @@ def get_group_info(chnName):
     groups = {
         "少儿": ["少儿","卡通","CCTV-14"],
         "CCTV": ["CCTV","CGTN"],
-        "江苏": ["江苏", "南京"],
         "卫视": ["卫视"],
+        "江苏": ["江苏", "南京"],
         "教育": ["CETV","教育"],
     }
 
@@ -86,6 +86,46 @@ def get_group_info(chnName):
             return key
     
     return "其他"
+
+def get_real_play_url(source_url, tag, chnName, chnCode, url_name):
+    if not source_url:
+        return ""
+
+    try:
+        response = requests.get(source_url)
+    except requests.RequestException as e:
+        print(f"跳过: {tag}-{chnName}-{chnCode} {url_name}请求异常：{e}")
+        return ""
+
+    if response.status_code != 200:
+        print(f"跳过: {tag}-{chnName}-{chnCode} {url_name}请求失败，状态码：{response.status_code}")
+        return ""
+
+    try:
+        play_data = response.json()
+    except ValueError:
+        return source_url
+
+    if 'u' in play_data:
+        return play_data['u']
+    if play_data.get('data') and play_data['data'][0].get('url'):
+        return play_data['data'][0]['url']
+
+    print(f"跳过: {tag}-{chnName}-{chnCode} {url_name}地址缺失")
+    return ""
+
+def escape_m3u_attr(value):
+    return str(value).replace('"', "'")
+
+def build_extinf(groupName, chnName, tvgName = "", backPlayUrl = ""):
+    attrs = [f'group-title="{escape_m3u_attr(groupName)}"']
+    if tvgName:
+        attrs.append(f'tvg-name="{escape_m3u_attr(tvgName)}"')
+    if backPlayUrl:
+        attrs.append('catchup="default"')
+        attrs.append(f'catchup-source="{escape_m3u_attr(backPlayUrl)}"')
+
+    return f'#EXTINF:-1 {" ".join(attrs)},{chnName}\n'
 
 def get_js_unicom_source(data):
     m3u_data_full = "#EXTM3U\n"
@@ -99,33 +139,23 @@ def get_js_unicom_source(data):
         tvgName = re.sub(r"高清|超清|超清|-8M|-", "", chnName)
         chnCode = item['chnCode']
         playUrl = item['playUrl']
-        response = requests.get(playUrl)
-        # 检查响应状态码
-        if response.status_code == 200:
-            # 解析JSON数据
-            play_data = response.json()
-            if 'u' in play_data:
-                playUrl_real = play_data['u']
-            elif play_data.get('data') and play_data['data'][0].get('url'):
-                playUrl_real = play_data['data'][0]['url']
-            else:
-                print(f"跳过: {tag}-{chnName}-{chnCode} 播放地址缺失")
-                continue
-        else:
-            print(f"跳过: {tag}-{chnName}-{chnCode} 请求失败，状态码：{response.status_code}")
+        backPlayUrl = item.get('backPlayUrl')
+        playUrl_real = get_real_play_url(playUrl, tag, chnName, chnCode, "播放")
+        if not playUrl_real:
             continue
+        backPlayUrl_real = get_real_play_url(backPlayUrl, tag, chnName, chnCode, "回放")
 
         # 获取 group 信息
         groupName = get_group_info(chnName)
 
         # 打印提取的信息
         print(f"处理: {tag}-{chnName}-{chnCode}")
-        m3u_data_full += f'#EXTINF:-1 group-title="{groupName}" tvg-name="{tvgName}",{chnName}\n'
+        m3u_data_full += build_extinf(groupName, chnName, tvgName, backPlayUrl_real)
         m3u_data_full += f'{playUrl_real}\n'
 
         # 青少年保护频道过滤
         if all(k not in groupName for k in ["少儿","其他"]):
-            m3u_data_kid += f'#EXTINF:-1 group-title="{groupName}",{chnName}\n'
+            m3u_data_kid += build_extinf(groupName, chnName, backPlayUrl = backPlayUrl_real)
             m3u_data_kid += f'{playUrl_real}\n'
         
     # 获取custom目录下所有的文件
