@@ -117,6 +117,13 @@ def get_real_play_url(source_url, tag, chnName, chnCode, url_name):
 def escape_m3u_attr(value):
     return str(value).replace('"', "'")
 
+def build_catchup_source(backPlayUrl):
+    if not backPlayUrl:
+        return ""
+
+    separator = "&" if "?" in backPlayUrl else "?"
+    return f"{backPlayUrl}{separator}start=${{start}}&end=${{end}}"
+
 def build_extinf(groupName, chnName, tvgName = "", backPlayUrl = ""):
     attrs = [f'group-title="{escape_m3u_attr(groupName)}"']
     if tvgName:
@@ -143,7 +150,7 @@ def get_js_unicom_source(data):
         playUrl_real = get_real_play_url(playUrl, tag, chnName, chnCode, "播放")
         if not playUrl_real:
             continue
-        backPlayUrl_real = get_real_play_url(backPlayUrl, tag, chnName, chnCode, "回放")
+        backPlayUrl_real = build_catchup_source(backPlayUrl)
 
         # 获取 group 信息
         groupName = get_group_info(chnName)
