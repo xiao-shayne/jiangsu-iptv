@@ -117,20 +117,10 @@ def get_real_play_url(source_url, tag, chnName, chnCode, url_name):
 def escape_m3u_attr(value):
     return str(value).replace('"', "'")
 
-def build_catchup_source(backPlayUrl):
-    if not backPlayUrl:
-        return ""
-
-    separator = "&" if "?" in backPlayUrl else "?"
-    return f"{backPlayUrl}{separator}start=${{start}}&end=${{end}}"
-
-def build_extinf(groupName, chnName, tvgName = "", backPlayUrl = ""):
+def build_extinf(groupName, chnName, tvgName = ""):
     attrs = [f'group-title="{escape_m3u_attr(groupName)}"']
     if tvgName:
         attrs.append(f'tvg-name="{escape_m3u_attr(tvgName)}"')
-    if backPlayUrl:
-        attrs.append('catchup="default"')
-        attrs.append(f'catchup-source="{escape_m3u_attr(backPlayUrl)}"')
 
     return f'#EXTINF:-1 {" ".join(attrs)},{chnName}\n'
 
@@ -146,23 +136,21 @@ def get_js_unicom_source(data):
         tvgName = re.sub(r"高清|超清|超清|-8M|-", "", chnName)
         chnCode = item['chnCode']
         playUrl = item['playUrl']
-        backPlayUrl = item.get('backPlayUrl')
         playUrl_real = get_real_play_url(playUrl, tag, chnName, chnCode, "播放")
         if not playUrl_real:
             continue
-        backPlayUrl_real = build_catchup_source(backPlayUrl)
 
         # 获取 group 信息
         groupName = get_group_info(chnName)
 
         # 打印提取的信息
         print(f"处理: {tag}-{chnName}-{chnCode}")
-        m3u_data_full += build_extinf(groupName, chnName, tvgName, backPlayUrl_real)
+        m3u_data_full += build_extinf(groupName, chnName, tvgName)
         m3u_data_full += f'{playUrl_real}\n'
 
         # 青少年保护频道过滤
         if all(k not in groupName for k in ["少儿","其他"]):
-            m3u_data_kid += build_extinf(groupName, chnName, backPlayUrl = backPlayUrl_real)
+            m3u_data_kid += build_extinf(groupName, chnName)
             m3u_data_kid += f'{playUrl_real}\n'
         
     # 获取custom目录下所有的文件
