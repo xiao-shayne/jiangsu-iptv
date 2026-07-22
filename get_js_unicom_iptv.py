@@ -5,6 +5,9 @@ import re
 import sys
 import requests
 from datetime import datetime
+from urllib.parse import parse_qsl, urlsplit
+
+AUTHINFO_VALUE = "%2BLV5NjPbEZEr5hC6nnbtEkAFVn1RP2d2uoo%2Foo97iAsu0HPDaI8IXtpvkDaFJ1bH"
 
 def open_latest_tag_file():
     # 获取当前目录中所有json文件
@@ -117,6 +120,19 @@ def get_real_play_url(source_url, tag, chnName, chnCode, url_name):
 def escape_m3u_attr(value):
     return str(value).replace('"', "'")
 
+def append_authinfo(url):
+    if not url:
+        return ""
+
+    parts = urlsplit(url)
+    if any(key.lower() == "authinfo" for key, _ in parse_qsl(parts.query, keep_blank_values=True)):
+        return url
+
+    base, fragment_separator, fragment = url.partition("#")
+    separator = "" if base.endswith(("?", "&")) else "&" if parts.query else "?"
+    fragment_suffix = f"{fragment_separator}{fragment}" if fragment_separator else ""
+    return f"{base}{separator}Authinfo={AUTHINFO_VALUE}{fragment_suffix}"
+
 def build_extinf(groupName, chnName, tvgName = ""):
     attrs = [f'group-title="{escape_m3u_attr(groupName)}"']
     if tvgName:
@@ -139,6 +155,7 @@ def get_js_unicom_source(data):
         playUrl_real = get_real_play_url(playUrl, tag, chnName, chnCode, "播放")
         if not playUrl_real:
             continue
+        playUrl_real = append_authinfo(playUrl_real)
 
         # 获取 group 信息
         groupName = get_group_info(chnName)
